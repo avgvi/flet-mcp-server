@@ -2,22 +2,23 @@
 
 import tempfile
 
-import diskcache
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 
+from flet_mcp import config
 from flet_mcp.services import examples
 from flet_mcp.services.examples import FletExamplesFetcher
 from flet_mcp.exceptions import FetchError, SourceError
 
 
 @pytest.fixture(autouse=True)
-def isolated_cache():
+def isolated_cache(monkeypatch):
     with tempfile.TemporaryDirectory() as tmpdir:
+        monkeypatch.setenv("FLET_MCP_CACHE_DIR", tmpdir)
         old = examples.cache
-        examples.cache = diskcache.Cache(tmpdir)
+        examples.cache = config.new_cache()
         yield
         examples.cache = old
 

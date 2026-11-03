@@ -3,7 +3,7 @@
 import os
 from pathlib import Path
 
-import diskcache
+import diskcache_community
 
 
 def cache_dir() -> str:
@@ -16,13 +16,19 @@ def cache_dir() -> str:
     return str(Path(base) / "flet-mcp")
 
 
-def new_cache() -> diskcache.Cache:
-    """Tuned cache: indexed tags (bulk invalidation), LRU eviction, 256MB cap."""
-    return diskcache.Cache(
+def new_cache() -> diskcache_community.Cache:
+    """Tuned cache: indexed tags (bulk invalidation), LRU eviction, 256MB cap.
+
+    SafeDisk only unpickles plain data (the str/dict/list responses cached here).
+    An entry holding anything else is deleted and read as a miss, so the
+    fetcher downloads it again instead of loading it.
+    """
+    return diskcache_community.Cache(
         cache_dir(),
         tag_index=True,
         eviction_policy="least-recently-used",
         size_limit=256 * 2**20,
+        disk=diskcache_community.SafeDisk.with_options(on_error="miss"),
     )
 
 

@@ -120,9 +120,10 @@ semaphore-limited concurrency. Network failures raise `FetchError` (surfaced
 as friendly tool errors) instead of silently returning empty results.
 
 ### 7. Caching & HTTP layers
-`diskcache` (24h TTL, tagged `github`/`pypi` for bulk invalidation, LRU
-eviction, 256MB cap) under `~/.cache/flet-mcp` (XDG-aware,
-`FLET_MCP_CACHE_DIR` override — Smithery sets this). One shared
+`diskcache-community` (24h TTL, tagged `github`/`pypi` for bulk invalidation,
+LRU eviction, 256MB cap) under `~/.cache/flet-mcp` (XDG-aware,
+`FLET_MCP_CACHE_DIR` override — Smithery sets this), read through `SafeDisk`.
+One shared
 `httpx.AsyncClient` — retrying transport, `follow_redirects`, granular
 timeouts, and a response hook that turns GitHub 403/429 rate-limit responses
 into a friendly `RateLimitedError` that suggests setting `GITHUB_TOKEN` —

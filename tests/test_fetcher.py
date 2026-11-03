@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 import httpx
-import diskcache
+import diskcache_community
 import tempfile
 import os
 
@@ -18,15 +18,15 @@ def isolated_cache():
     with tempfile.TemporaryDirectory() as tmpdir:
         old_cache_dir = os.environ.get("FLET_MCP_CACHE_DIR")
         os.environ["FLET_MCP_CACHE_DIR"] = tmpdir
-        github_docs.cache = diskcache.Cache(tmpdir)
-        packages.cache = diskcache.Cache(tmpdir)
+        github_docs.cache = config.new_cache()
+        packages.cache = config.new_cache()
         yield
         if old_cache_dir is None:
             os.environ.pop("FLET_MCP_CACHE_DIR", None)
         else:
             os.environ["FLET_MCP_CACHE_DIR"] = old_cache_dir
-        github_docs.cache = diskcache.Cache(config.cache_dir())
-        packages.cache = diskcache.Cache(config.cache_dir())
+        github_docs.cache = config.new_cache()
+        packages.cache = config.new_cache()
 
 
 # --- Fixtures ---
@@ -232,6 +232,45 @@ async def test_get_doc_content_strips_mdx_scaffolding(docs_fetcher, mock_respons
     assert "controls/material/dropdown/basic/main.py" in content  # path preserved as note
     assert "# Dropdown" in content
     assert "<RealContent>" in content  # unknown JSX tags left alone
+
+
+def _write_marker(path):
+    with open(path, "w") as marker:
+        marker.write("ran")
+    return "# Planted"
+
+
+class _PlantedEntry:
+    """Pickles to a _write_marker call, like an entry another process wrote."""
+
+    def __init__(self, path):
+        self.path = path
+
+    def __reduce__(self):
+        return (_write_marker, (self.path,))
+
+
+@pytest.mark.asyncio
+async def test_get_doc_content_refetches_pickled_cache_entry(docs_fetcher, mock_response, tmp_path):
+    """A cached doc rewritten as a pickle is dropped unread and fetched again."""
+    docs_fetcher.client.get = AsyncMock(return_value=mock_response(text=MOCK_DROPDOWN_DOC))
+    doc = "website/docs/controls/dropdown/index.md"
+    await docs_fetcher.get_doc_content(doc)
+    assert docs_fetcher.client.get.call_count == 1
+
+    # the default Disk stores any object as a pickle
+    marker = tmp_path / "marker"
+    with diskcache_community.Cache(
+        github_docs.cache.directory, disk=diskcache_community.Disk
+    ) as other_writer:
+        (url,) = list(other_writer)
+        other_writer.set(url, _PlantedEntry(str(marker)))
+
+    content = await docs_fetcher.get_doc_content(doc)
+
+    assert not marker.exists()
+    assert docs_fetcher.client.get.call_count == 2
+    assert "# Dropdown" in content
 
 
 @pytest.mark.asyncio
